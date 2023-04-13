@@ -24,8 +24,7 @@ THz = 10 ** 12
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 
 if 'posix' in cur_os:
-    data_dir = Path(r"")
-    exit("OOPS")
+    data_dir = Path(r"/home/alex/Data/Misc/Klimaanlagenbeeinflussung/Leermessungen")
 else:
     data_dir = Path(r"E:\measurementdata\Misc\Klimaanlagenbeeinflussung\Leermessungen")
     try:

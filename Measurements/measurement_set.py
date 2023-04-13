@@ -78,7 +78,12 @@ class MeasurementSet:
                 phi -= 2 * pi
             ref_angle_arr.append(phi)
 
-        temperature_time, temperature = read_temp_file("E:\measurementdata\Misc\Klimaanlagenbeeinflussung\Temperatursensor.csv")
+        if os.name == 'posix':
+            climate_file = Path("/home/alex/Data/Misc/Klimaanlagenbeeinflussung/Temperatursensor.csv")
+        else:
+            climate_file = Path("E:\measurementdata\Misc\Klimaanlagenbeeinflussung\Temperatursensor.csv")
+
+        temperature_time, temperature = read_temp_file(climate_file)
 
         fig, ax1 = plt.subplots()
 
