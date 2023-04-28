@@ -1,38 +1,175 @@
 import itertools
-import random
+
 from consts import *
-import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+from numpy.fft import fft, fftfreq
+from datetime import datetime
 import matplotlib.ticker as ticker
-from functions import do_fft, do_ifft, phase_correction, unwrap, window
-from measurements import get_all_measurements
+from functions import do_fft, phase_correction, unwrap, window
 
 
-class Image:
-    plotted_ref = False
-    noise_floor = None
-    time_axis = None
-    cache_path = None
-    sample_idx = None
-    all_points = None
-    name = ""
+class Measurement:
+    def __init__(self, data_td=None, meas_type=None, filepath=None, post_process_config=None):
+        self.filepath = filepath
+        self.meas_time = None
+        self.meas_type = None
+        self.sample_name = None
+        self.position = [None, None]
 
-    def __init__(self, data_path, sub_image=None):
-        self.data_path = data_path
-        self.sub_image = sub_image
+        if post_process_config is None:
+            from consts import post_process_config
+
+        self.post_process_config = post_process_config
+        self._data_fd, self._data_td = None, data_td
+        self.pre_process_done = False
+
+        self._set_metadata(meas_type)
+
+    def __repr__(self):
+        return str(self.filepath)
+
+    def _set_metadata(self, meas_type=None):
+        if meas_type is not None:
+            self.meas_type = meas_type
+            return
+
+        # set time
+        date_formats = [("%Y-%m-%dT%H-%M-%S.%f", 26), ("%Y-%m-%d_%H-%M-%S", 19)]
+        for date_format in date_formats:
+            try:
+                length = date_format[1]
+                self.meas_time = datetime.strptime(str(self.filepath.stem)[:length], date_format[0])
+                break
+            except ValueError:
+                continue
+        if self.meas_time is None:
+            raise ValueError
+
+        # set sample name
+        try:
+            dir_1above, dir_2above = self.filepath.parents[0], self.filepath.parents[1]
+            if ("sam" in dir_1above.stem.lower()) or ("ref" in dir_1above.stem.lower()):
+                self.sample_name = dir_2above.stem
+            else:
+                self.sample_name = dir_1above.stem
+        except ValueError:
+            self.sample_name = "N/A"
+
+        # set measurement type
+        if "ref" in str(self.filepath.stem).lower():
+            self.meas_type = "ref"
+        elif "sam" in str(self.filepath.stem).lower():
+            self.meas_type = "sam"
+        else:
+            self.meas_type = "other"
+
+        # set position
+        try:
+            str_splits = str(self.filepath).split("_")
+            x = float(str_splits[-2].split(" mm")[0])
+            y = float(str_splits[-1].split(" mm")[0])
+            self.position = [x, y]
+        except ValueError:
+            self.position = [0, 0]
+
+    def do_preprocess(self, force=False):
+        if self.pre_process_done and not force:
+            return
+
+        if self.post_process_config["sub_offset"]:
+            self._data_td[:, 1] -= np.mean(self._data_td[:10, 1])
+        if self.post_process_config["en_windowing"]:
+            self._data_td = window(self._data_td)
+        if self.post_process_config["normalize"]:
+            self._data_td[:, 1] /= np.max(self._data_td[:, 1])
+
+        self.pre_process_done = True
+
+    def get_data_td(self, get_raw=False):
+        def read_file(file_path):
+            try:
+                return np.loadtxt(file_path)
+            except ValueError:
+                return np.loadtxt(file_path, delimiter=",")
+
+        if get_raw:
+            return read_file(self.filepath)
+
+        if self._data_td is None:
+            self._data_td = read_file(self.filepath)
+
+        if self._data_td[0, 0] < 1:
+            self._data_td[:, 0] *= 1E12
+
+        self.do_preprocess()
+
+        return self._data_td
+
+    def get_data_fd(self, pos_freqs_only=True, reversed_time=True):
+        if self._data_fd is not None:
+            return self._data_fd
+
+        data_td = self.get_data_td()
+        t, y = data_td[:, 0], data_td[:, 1]
+
+        if reversed_time:
+            y = np.flip(y)
+
+        dt = float(np.mean(np.diff(t)))
+        freqs, data_fd = fftfreq(n=len(t), d=dt), fft(y)
+
+        if pos_freqs_only:
+            pos_slice = freqs >= 0
+            self._data_fd = np.array([freqs[pos_slice], data_fd[pos_slice]]).T
+        else:
+            self._data_fd = np.array([freqs, data_fd]).T
+
+        return self._data_fd
+
+
+class MeasurementSet:
+    all_measurements = None
+    temp_log = None
+    set_info = None
+    avg_sam = None
+
+    def __init__(self, data_dir=None, temp_log=None):
+        self.data_dir = Path(data_dir)
 
         self.refs, self.sams = self._set_measurements()
-        self.image_info = self._set_info()
-        self.image_data = self._image_cache()
+        self.avg_sam = self._avg_sample()
+
+        if temp_log is not None:
+            self.temp_log = temp_log
+
+        self._set_info()
 
     def _set_measurements(self):
-        all_measurements = get_all_measurements(data_dir_=self.data_path)
-        refs, sams = self._filter_measurements(all_measurements)
+        post_process = {"sub_offset": False, "en_windowing": False, "normalize": True}
+        all_measurements = self._get_all_measurements(post_process=post_process)
+        self.all_measurements = list(sorted(all_measurements, key=lambda meas: meas.meas_time))
 
-        refs = tuple(sorted(refs, key=lambda meas: meas.meas_time))
-        sams = tuple(sorted(sams, key=lambda meas: meas.meas_time))
+        refs, sams = self._filter_measurements(self.all_measurements)
 
         return refs, sams
+
+    def _get_all_measurements(self, post_process=None):
+        measurements = []
+
+        if self.data_dir is not None:
+            glob = self.data_dir.glob("**/*.txt")
+        else:
+            glob = data_dir_ext.glob("**/*.txt")
+
+        for file_path in glob:
+            if file_path.is_file():
+                try:
+                    measurements.append(Measurement(filepath=file_path, post_process_config=post_process))
+                except ValueError:
+                    print(f"Skipping: {file_path} (Failed to parse time)")
+
+        return measurements
 
     @staticmethod
     def _filter_measurements(measurements):
@@ -46,19 +183,138 @@ class Image:
         return refs, sams
 
     def _set_info(self):
-        parts = self.sams[0].filepath.parts
-        self.sample_idx = sample_names.index(parts[-2])
-        self.name = f"Sample {self.sample_idx + 1} {parts[-3]}"
+        example_measurement = self.all_measurements[0]
+        data_td = example_measurement.get_data_td()
+        samples = int(data_td.shape[0])
+        self.time_axis = data_td[:, 0].real
 
-        sample_data_td = self.sams[0].get_data_td()
-        samples = int(sample_data_td.shape[0])
-        self.time_axis = sample_data_td[:, 0].real
-
-        sample_data_fd = self.sams[0].get_data_fd()
+        sample_data_fd = example_measurement.get_data_fd()
         self.freq_axis = sample_data_fd[:, 0].real
 
         dt = np.mean(np.diff(self.time_axis))
 
+        ref_cnt, sam_cnt = len(self.refs), len(self.sams)
+        print(f"Number of reference and sample measurements in set: {ref_cnt}, {sam_cnt}")
+
+        print("Time between first and last measurement: ",
+              self.all_measurements[-1].meas_time - self.all_measurements[0].meas_time)
+
+        self.set_info = {"dt": dt, "samples": samples, "ref_cnt": ref_cnt, "sam_cnt": sam_cnt}
+
+    def _avg_sample(self):
+        t = self.sams[0].get_data_td()[:, 0]
+
+        y_arrays = []
+        for measurement in self.sams:
+            data_td = measurement.get_data_td()
+            y_arrays.append(data_td[:, 1])
+
+        return np.array([t, np.mean(y_arrays, axis=0)]).T
+
+    def find_measurement(self, x, y):
+        closest_sam, best_fit_val = None, np.inf
+        for sam_meas in self.sams:
+            val = abs(sam_meas.position[0] - x) + \
+                  abs(sam_meas.position[1] - y)
+            if val < best_fit_val:
+                best_fit_val = val
+                closest_sam = sam_meas
+
+        return closest_sam
+
+    def system_stability(self, selected_freq_=None):
+        def read_temp_file():
+            df = pd.read_csv(self.temp_log)
+            file_data = df.values
+
+            times, temperatures = file_data[:, 0], file_data[:, 1]
+            temperatures[temperatures > 30] /= 1e4
+            temperatures[temperatures < 10] /= 1e-1
+
+            times = (times - times[0]) / 3600
+
+            return times, temperatures
+
+        if selected_freq_ is None:
+            selected_freq_ = self.freq_axis[len(self.freq_axis) // 2]
+
+        f_idx = np.argmin(np.abs(self.freq_axis - selected_freq_))
+
+        ref_ampl_arr, ref_angle_arr = [], []
+
+        t0 = self.refs[0].meas_time
+        meas_times = [(ref.meas_time - t0).total_seconds() / 3600 for ref in self.refs]
+        for i, ref in enumerate(self.refs):
+            ref_td = ref.get_data_td()
+            ref_fd = do_fft(ref_td)
+
+            ref_ampl_arr.append(np.sum(np.abs(ref_fd[f_idx, 1])) / 1)
+            phi = np.angle(ref_fd[f_idx, 1])
+            if i and (abs(ref_angle_arr[-1] - phi) > pi):
+                phi -= 2 * pi
+            ref_angle_arr.append(phi)
+
+        fig, (ax1_amp, ax2_phase) = plt.subplots(nrows=2, ncols=1)
+
+        ax1_amp.set_title("Single frequency reference amplitude")
+
+        color = 'tab:blue'
+        ax1_amp.set_xlabel("Measurement time (hour)")
+        ax1_amp.set_ylabel("Amplitude (Arb. u.)")
+        ax1_amp.plot(meas_times, ref_ampl_arr, label=f"Amplitude at {selected_freq_} THz")
+        ax1_amp.tick_params(axis="y", labelcolor=color)
+        ax1_amp.legend()
+
+        ax2_phase.set_title("Single frequency reference phase")
+
+        color = 'tab:blue'
+        ax2_phase.set_xlabel("Measurement time (hour)")
+        ax2_phase.set_ylabel("Phase (rad)")
+        ax2_phase.plot(meas_times, ref_angle_arr, color=color, label=f"Phase at {selected_freq_} THz")
+        ax2_phase.tick_params(axis="y", labelcolor=color)
+        ax2_phase.legend()
+
+        if self.temp_log is not None:
+            temperature_time, temperature = read_temp_file()
+
+            ax2 = ax1_amp.twinx()  # instantiate a second axes that shares the same x-axis
+
+            color = 'tab:red'
+            ax2.set_ylabel("Temperature (deg. C)", color=color)  # we already handled the x-label with ax1
+            ax2.plot(temperature_time, temperature, color=color)
+            ax2.tick_params(axis="y", labelcolor=color)
+
+            fig.tight_layout()  # otherwise the right y-label is slightly clipped
+
+            ax2 = ax2_phase.twinx()  # instantiate a second axes that shares the same x-axis
+
+            color = 'tab:red'
+            ax2.set_ylabel("Temperature (deg. C)", color=color)  # we already handled the x-label with ax1
+            ax2.plot(temperature_time, temperature, color=color)
+            ax2.tick_params(axis="y", labelcolor=color)
+
+            fig.tight_layout()  # otherwise the right y-label is slightly clipped
+
+
+class Image(MeasurementSet):
+    plotted_ref = False
+    noise_floor = None
+    time_axis = None
+    cache_path = None
+    sample_idx = None
+    all_points = None
+    name = ""
+
+    def __init__(self, data_dir, sub_image=None, **kwargs):
+        super().__init__(data_dir=data_dir)
+        self.__dict__.update(kwargs)
+
+        self.sub_image = sub_image  # second image (in case of substrate)
+
+        self._set_image_info()
+        self.image_data = self._image_cache()
+
+    def _set_image_info(self):
         x_coords, y_coords = [], []
         for sam_measurement in self.sams:
             x_coords.append(sam_measurement.position[0])
@@ -77,7 +333,9 @@ class Image:
 
         self._empty_grid = np.zeros((w, h), dtype=complex)
 
-        return {"w": w, "h": h, "dx": dx, "dy": dy, "dt": dt, "samples": samples, "extent": extent}
+        info = {"w": w, "h": h, "dx": dx, "dy": dy, "extent": extent}
+
+        self.set_info.update(info)
 
     def _image_cache(self):
         """
@@ -89,10 +347,10 @@ class Image:
         try:
             img_data = np.load(str(self.cache_path / "_raw_img_cache.npy"))
         except FileNotFoundError:
-            w, h, samples = self.image_info["w"], self.image_info["h"], self.image_info["samples"]
-            dx, dy = self.image_info["dx"], self.image_info["dy"]
+            w, h, samples = self.set_info["w"], self.set_info["h"], self.set_info["samples"]
+            dx, dy = self.set_info["dx"], self.set_info["dy"]
             img_data = np.zeros((w, h, samples))
-            min_x, max_x, min_y, max_y = self.image_info["extent"]
+            min_x, max_x, min_y, max_y = self.set_info["extent"]
 
             for sam_measurement in self.sams:
                 x_pos, y_pos = sam_measurement.position
@@ -104,8 +362,8 @@ class Image:
         return img_data
 
     def _coords_to_idx(self, x, y):
-        x_idx = int((x - self.image_info["extent"][0]) / self.image_info["dx"])
-        y_idx = int((y - self.image_info["extent"][2]) / self.image_info["dy"])
+        x_idx = int((x - self.set_info["extent"][0]) / self.set_info["dx"])
+        y_idx = int((y - self.set_info["extent"][2]) / self.set_info["dy"])
 
         return x_idx, y_idx
 
@@ -133,9 +391,9 @@ class Image:
         return grid_vals
 
     def _calc_grid_vals(self, quantity="p2p", selected_freq=0.800):
-        info = self.image_info
+        info = self.set_info
 
-        grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_121sub_layer1.npy"
+        # grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_121sub_layer1.npy"
         # grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_10_10.npy"
 
         if quantity.lower() == "power":
@@ -186,7 +444,7 @@ class Image:
 
         grid_vals = self._calc_grid_vals(quantity=quantity, selected_freq=selected_freq)
 
-        info = self.image_info
+        info = self.set_info
         if img_extent is None:
             w0, w1, h0, h1 = [0, info["w"], 0, info["h"]]
         else:
@@ -196,13 +454,13 @@ class Image:
 
         grid_vals = grid_vals[w0:w1, h0:h1]
 
-        fig = plt.figure(f"{self.name} {sample_labels[self.sample_idx]}")
+        fig = plt.figure(f"{self.name}")
         ax = fig.add_subplot(111)
-        ax.set_title(f"{self.name} {sample_labels[self.sample_idx]}")
+        ax.set_title(f"{self.name}")
         fig.subplots_adjust(left=0.2)
 
         if img_extent is None:
-            img_extent = self.image_info["extent"]
+            img_extent = self.set_info["extent"]
 
         img = ax.imshow(grid_vals.transpose((1, 0)),
                         vmin=np.min(grid_vals), vmax=np.max(grid_vals),
@@ -221,19 +479,8 @@ class Image:
         cbar = fig.colorbar(img, format=ticker.FuncFormatter(fmt))
         cbar.set_label(f"{quantity}" + label, rotation=270, labelpad=30)
 
-    def get_measurement(self, x, y):
-        closest_sam, best_fit_val = None, np.inf
-        for sam_meas in self.sams:
-            val = abs(sam_meas.position[0] - x) + \
-                  abs(sam_meas.position[1] - y)
-            if val < best_fit_val:
-                best_fit_val = val
-                closest_sam = sam_meas
-
-        return closest_sam
-
     def get_point(self, x, y, normalize=False, sub_offset=False, both=False, add_plot=False):
-        dx, dy, dt = self.image_info["dx"], self.image_info["dy"], self.image_info["dt"]
+        dx, dy, dt = self.set_info["dx"], self.set_info["dy"], self.set_info["dt"]
 
         x_idx, y_idx = self._coords_to_idx(x, y)
         y_ = self.image_data[x_idx, y_idx]
@@ -257,7 +504,7 @@ class Image:
 
     def get_ref(self, both=False, normalize=False, sub_offset=False, coords=None, ret_meas=False):
         if coords is not None:
-            closest_sam = self.get_measurement(*coords)
+            closest_sam = self.find_measurement(*coords)
 
             closest_ref, best_fit_val = None, np.inf
             for ref_meas in self.refs:
@@ -388,39 +635,16 @@ class Image:
 
 
 if __name__ == '__main__':
-    sample_idx = 0
+    data_path = "/home/alex/Data/Image0"
+    image = Image(data_dir=data_path)
 
-    meas_dir_sub = data_dir / "Uncoated" / sample_names[sample_idx]
-    sub_image = Image(data_path=meas_dir_sub)
-
-    meas_dir = data_dir / "Coated" / sample_names[sample_idx]
-    film_image = Image(data_path=meas_dir, sub_image=sub_image)
-
-    # sub_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p")
-
-    # s1, s2, s3 = [-10, 50, -3, 27]
-    # film_image.plot_cond_vs_d()
-    film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="loss", selected_freq=1.200)
-    # sub_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="p2p")
-    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Conductivity", selected_freq=1.200)
-    # film_image.plot_image(img_extent=[-10, 50, -3, 27], quantity="Reference phase", selected_freq=1.200)
+    image.plot_image(img_extent=[-10, 75, -3, 27], quantity="p2p")
 
     # sub_image.system_stability(selected_freq_=0.800)
     # film_image.system_stability(selected_freq_=1.200)
 
-    # s4 = [18, 51, 0, 20]
-    # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="p2p", selected_freq=1.200)
-    # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="Conductivity", selected_freq=0.600)
-    # film_image.plot_image(img_extent=[18, 51, 0, 20], quantity="power", selected_freq=(1.150, 1.250))
-
-    # stability_dir = data_dir / "Stability" / "2023-03-20"
-
-    # stability_image = Image(stability_dir)
-    # stability_image.system_stability(selected_freq_=1.200)
-
     for fig_label in plt.get_figlabels():
-        if "Sample" in fig_label:
+        if "Sample" not in fig_label:
             continue
         plt.figure(fig_label)
         plt.legend()

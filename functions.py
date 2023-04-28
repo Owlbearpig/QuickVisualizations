@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy import nan_to_num, array, zeros
+from consts import THz, c0, pi
 from scipy.stats import pearsonr
-from imports import *
 from numpy.fft import fft, ifft, fftfreq
 from scipy import signal
 
