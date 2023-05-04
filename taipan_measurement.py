@@ -222,6 +222,34 @@ class MeasurementSet:
 
         return closest_sam
 
+    def match_ref(self, measurement, both_domains=False, normalize=False, sub_offset=False, ret_meas=False):
+        closest_ref, best_fit_val = None, np.inf
+        for ref_meas in self.refs:
+            val = np.abs((measurement.meas_time - ref_meas.meas_time).total_seconds())
+            if val < best_fit_val:
+                best_fit_val = val
+                closest_ref = ref_meas
+        print(f"Time between ref and sample: {(measurement.meas_time - closest_ref.meas_time).total_seconds()}")
+
+        ref_td = closest_ref.get_data_td()
+
+        if sub_offset:
+            ref_td[:, 1] -= np.mean(ref_td[:, 1])
+
+        if normalize:
+            ref_td[:, 1] *= 1 / np.max(ref_td[:, 1])
+
+        ref_td[:, 0] -= ref_td[0, 0]
+
+        if ret_meas:
+            return closest_ref
+
+        if both_domains:
+            ref_fd = do_fft(ref_td)
+            return ref_td, ref_fd
+        else:
+            return ref_td
+
     def system_stability(self, selected_freq_=None):
         def read_temp_file():
             df = pd.read_csv(self.temp_log)
@@ -295,9 +323,38 @@ class MeasurementSet:
 
             fig.tight_layout()  # otherwise the right y-label is slightly clipped
 
+    def calc_refractive_index(self, measurement, thickness):
+        ref_td, ref_fd = self.match_ref(measurement, both_domains=True)
+        sam_fd = measurement.get_data_fd()
+
+        phi_ref = phase_correction(ref_fd)
+        phi_sam = phase_correction(sam_fd)
+
+        delta_phi = phi_ref - phi_sam
+
+        d = thickness
+        omega = 2 * pi * ref_fd[:, 0].real
+        n_a = 1 + d * delta_phi / (c_thz * omega)
+
+        return n_a
+
 
 class Image(MeasurementSet):
-    plotted_ref = False
+    """
+    Todos:
+        Part of measurement set ?
+        - Refractive index + extinction coefficient image (single layer)
+            - Add TeraLyzer thickness algo support
+            - Birefringence?
+            - Single points of above??
+        - Compatibility with different dates possible?
+        - Different measurement types
+        - Ease of use (GUI?)
+        - ...
+
+    """
+
+    _plotted_ref = False
     noise_floor = None
     time_axis = None
     cache_path = None
@@ -371,7 +428,7 @@ class Image(MeasurementSet):
         def power(measurement):
             freq_slice = (freq_range[0] < self.freq_axis) * (self.freq_axis < freq_range[1])
 
-            ref_td, ref_fd = self.get_ref(coords=measurement.position, both=True)
+            ref_td, ref_fd = self.match_ref(measurement, both_domains=True)
 
             sam_fd = measurement.get_data_fd()
             power_val_sam = np.sum(np.abs(sam_fd[freq_slice, 1])) / np.sum(freq_slice)
@@ -393,9 +450,6 @@ class Image(MeasurementSet):
     def _calc_grid_vals(self, quantity="p2p", selected_freq=0.800):
         info = self.set_info
 
-        # grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_121sub_layer1.npy"
-        # grid_vals_cache_name = self.cache_path / f"{quantity}_{selected_freq}_s{self.sample_idx + 1}_10_10.npy"
-
         if quantity.lower() == "power":
             if isinstance(selected_freq, tuple):
                 grid_vals = self._calc_power_grid(freq_range=selected_freq)
@@ -414,7 +468,7 @@ class Image(MeasurementSet):
                 amp_, _ = self._ref_interpolation(measurement, selected_freq_=selected_freq,
                                                   ret_cart=False)
                 grid_vals[x_idx, y_idx] = amp_
-        elif quantity == "Reference phase":
+        elif quantity == "ref_phi":
             grid_vals = self._empty_grid.copy()
 
             for i, measurement in enumerate(self.sams):
@@ -435,12 +489,12 @@ class Image(MeasurementSet):
             label = ""
         elif quantity.lower() == "ref_amp":
             label = " Interpolated ref. amp. at " + str(np.round(selected_freq, 3)) + " THz"
-        elif quantity == "Reference phase":
+        elif quantity == "ref_phi":
             label = " interpolated at " + str(np.round(selected_freq, 3)) + " THz"
         elif quantity.lower() == "power":
             label = f"({selected_freq[0]}-{selected_freq[1]}) THz"
         else:
-            label = " "
+            label = ""
 
         grid_vals = self._calc_grid_vals(quantity=quantity, selected_freq=selected_freq)
 
@@ -502,44 +556,11 @@ class Image(MeasurementSet):
         else:
             return y_td, do_fft(y_td)
 
-    def get_ref(self, both=False, normalize=False, sub_offset=False, coords=None, ret_meas=False):
-        if coords is not None:
-            closest_sam = self.find_measurement(*coords)
-
-            closest_ref, best_fit_val = None, np.inf
-            for ref_meas in self.refs:
-                val = np.abs((closest_sam.meas_time - ref_meas.meas_time).total_seconds())
-                if val < best_fit_val:
-                    best_fit_val = val
-                    closest_ref = ref_meas
-            print(f"Time between ref and sample: {(closest_sam.meas_time - closest_ref.meas_time).total_seconds()}")
-            chosen_ref = closest_ref
-        else:
-            chosen_ref = self.refs[-1]
-
-        ref_td = chosen_ref.get_data_td()
-
-        if sub_offset:
-            ref_td[:, 1] -= np.mean(ref_td[:, 1])
-
-        if normalize:
-            ref_td[:, 1] *= 1 / np.max(ref_td[:, 1])
-
-        ref_td[:, 0] -= ref_td[0, 0]
-
-        if ret_meas:
-            return chosen_ref
-
-        if both:
-            ref_fd = do_fft(ref_td)
-            return ref_td, ref_fd
-        else:
-            return ref_td
-
     def plot_point(self, x, y, sam_td=None, ref_td=None, sub_noise_floor=False, label="", td_scale=1):
         if (sam_td is None) and (ref_td is None):
-            sam_td = self.get_point(x, y, sub_offset=True)
-            ref_td = self.get_ref(sub_offset=True, coords=(x, y))
+            measurement = self.find_measurement(x, y)
+            sam_td = measurement.get_data_td()
+            ref_td = self.match_ref(measurement, sub_offset=True)
 
             sam_td = window(sam_td, win_len=25, shift=0, en_plot=False, slope=0.05)
             ref_td = window(ref_td, win_len=25, shift=0, en_plot=False, slope=0.05)
@@ -548,7 +569,6 @@ class Image(MeasurementSet):
 
             sam_td, sam_fd = phase_correction(sam_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
             ref_td, ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
-
         else:
             ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
 
@@ -556,7 +576,7 @@ class Image(MeasurementSet):
 
         noise_floor = np.mean(20 * np.log10(np.abs(ref_fd[ref_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
-        if not self.plotted_ref:
+        if not self._plotted_ref:
             plt.figure("Spectrum")
             plt.plot(ref_fd[plot_range1, 0], 20 * np.log10(np.abs(ref_fd[plot_range1, 1])) - noise_floor,
                      label="Reference")
@@ -573,7 +593,7 @@ class Image(MeasurementSet):
             plt.xlabel("Time (ps)")
             plt.ylabel("Amplitude (Arb. u.)")
 
-            self.plotted_ref = True
+            self._plotted_ref = True
 
         label += f" (x={x} (mm), y={y} (mm))"
         noise_floor = np.mean(20 * np.log10(np.abs(sam_fd[sam_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
@@ -635,7 +655,7 @@ class Image(MeasurementSet):
 
 
 if __name__ == '__main__':
-    data_path = "/home/alex/Data/Image0"
+    data_path = "/home/alex/Data/MSLA/Image1"
     image = Image(data_dir=data_path)
 
     image.plot_image(img_extent=[-10, 75, -3, 27], quantity="p2p")

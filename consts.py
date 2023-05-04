@@ -18,7 +18,7 @@ plot_range_sub = slice(25, 350)
 
 cur_os = os.name
 
-c_thz = c0 * 10 ** -9  # mm / s
+c_thz = c0 * 10 ** -9  # mm / ps
 
 um = 10 ** -6
 THz = 10 ** 12
