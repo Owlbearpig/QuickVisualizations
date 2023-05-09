@@ -75,7 +75,7 @@ def phase_correction(data_fd, disable=False, fit_range=None, en_plot=False, extr
     phase_unwrapped = unwrap(data_fd)
 
     if fit_range is None:
-        fit_range = [0.40, 0.75]
+        fit_range = [0.25, 0.65]
 
     fit_slice = (freqs >= fit_range[0]) * (freqs <= fit_range[1])
     p = np.polyfit(freqs[fit_slice], phase_unwrapped[fit_slice, 1], 1)

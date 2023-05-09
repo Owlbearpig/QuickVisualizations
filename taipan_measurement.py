@@ -1,5 +1,5 @@
 import itertools
-
+from mpl_settings import *
 from consts import *
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -224,7 +224,8 @@ class MeasurementSet:
 
         return closest_sam
 
-    def match_ref(self, measurement, both_domains=False, normalize=False, sub_offset=False, ret_meas=False):
+    def match_ref(self, measurement: Measurement, both_domains=False, normalize=False, sub_offset=False,
+                  ret_meas=False):
         closest_ref, best_fit_val = None, np.inf
         for ref_meas in self.refs:
             val = np.abs((measurement.meas_time - ref_meas.meas_time).total_seconds())
@@ -325,8 +326,10 @@ class MeasurementSet:
 
             fig.tight_layout()  # otherwise the right y-label is slightly clipped
 
-    def calc_refractive_index(self, x, y, thickness):
+    def calc_refractive_index(self, x, y, sam_id, en_plot=False):
+        thickness = samples[str(sam_id)]
         measurement = self.find_measurement(x, y)
+
         ref_td, ref_fd = self.match_ref(measurement, both_domains=True)
         freqs = ref_fd[:, 0].real
         sam_fd = measurement.get_data_fd()
@@ -338,12 +341,31 @@ class MeasurementSet:
 
         omega = 2 * pi * freqs
         n_a = 1 + c_thz * delta_phi / (omega * thickness)
+        T = np.abs(sam_fd[:, 1] / ref_fd[:, 1])
+        alpha = 1e4*(-2/thickness) * np.log(T * (n_a + 1)**2 / (4 * n_a))
 
-        return array([freqs, n_a]).T
+        if en_plot:
+            label = f"Sample {sam_id} ({x} mm, {y} mm, d={thickness} $\mu m$)"
+            plt.figure("Refractive index")
+            plt.title("Refractive index")
+            if sam_id != 5:
+                plt.plot(freqs[plot_range_sub], n_a[plot_range_sub], label=label)
+            plt.xlabel("Frequency (THz)")
+            plt.ylabel("Refractive index")
+
+            label = f"Sample {sam_id} ({x} mm, {y} mm, d={thickness} $\mu m$)"
+            plt.figure("Absorption coefficient")
+            plt.title("Absorption coefficient")
+            plt.plot(freqs[plot_range_sub], alpha[plot_range_sub], label=label)
+            plt.xlabel("Frequency (THz)")
+            plt.ylabel("Absorption coefficient $(cm^{-1})$")
+
+        return array([freqs, n_a]).T, array([freqs, alpha]).T
 
 
 class Image(MeasurementSet):
     """
+    # loading times ....
     Todos:
         Part of measurement set ?
         - Refractive index + extinction coefficient image (single layer)
@@ -559,12 +581,12 @@ class Image(MeasurementSet):
         else:
             return y_td, do_fft(y_td)
 
-    def plot_point(self, x, y, sam_td=None, ref_td=None, sub_noise_floor=False, label="", td_scale=1):
+    def plot_point(self, x, y, sam_id=None, sam_td=None, ref_td=None, sub_noise_floor=False, td_scale=1):
         if (sam_td is None) and (ref_td is None):
             measurement = self.find_measurement(x, y)
+            print(measurement)
             sam_td = measurement.get_data_td()
             ref_td = self.match_ref(measurement, sub_offset=False)
-            print(np.max(ref_td[:, 1]))
 
             # sam_td = window(sam_td, win_len=25, shift=0, en_plot=False, slope=0.05)
             # ref_td = window(ref_td, win_len=25, shift=0, en_plot=False, slope=0.05)
@@ -576,7 +598,7 @@ class Image(MeasurementSet):
         else:
             ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
 
-        #ref_td[:, 1] -= np.mean(ref_td[:, 1])
+        ref_td[:, 1] -= np.mean(ref_td[:, 1])
         sam_td[:, 1] -= np.mean(sam_td[:, 1])
 
         phi_ref, phi_sam = unwrap(ref_fd), unwrap(sam_fd)
@@ -598,11 +620,15 @@ class Image(MeasurementSet):
             plt.figure("Time domain")
             plt.plot(ref_td[:, 0], ref_td[:, 1], label="Reference")
             plt.xlabel("Time (ps)")
-            plt.ylabel("Amplitude (Arb. u.)")
+            plt.ylabel("Amplitude (arb. u.)")
 
             self._plotted_ref = True
 
-        label += f" (x={x} (mm), y={y} (mm))"
+        label = f"(x={x} mm, y={y} mm)"
+        if sam_id is not None:
+            label = f"Sample {sam_id} " + label
+            label = label.replace(" mm)", f" mm, d={samples[str(sam_id)]} $\mu m$)")
+
         noise_floor = np.mean(20 * np.log10(np.abs(sam_fd[sam_fd[:, 0] > 6.0, 1]))) * sub_noise_floor
 
         plt.figure("Spectrum")
@@ -612,7 +638,7 @@ class Image(MeasurementSet):
         plt.plot(sam_fd[plot_range1, 0], phi_sam[plot_range1, 1], label=label)
 
         plt.figure("Time domain")
-        plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label + f"\n(Amplitude x {td_scale})")
+        plt.plot(sam_td[:, 0], td_scale * sam_td[:, 1], label=label)
 
     def _ref_interpolation(self, sam_meas, selected_freq_=0.800, ret_cart=False):
         sam_meas_time = sam_meas.meas_time
@@ -662,27 +688,33 @@ class Image(MeasurementSet):
 
 
 if __name__ == '__main__':
-    data_path = data_dir_ext / "Image0"
+    data_path = data_dir_ext / "Image1"
     image = Image(data_dir=data_path)
 
-    # image.plot_image(img_extent=[-10, 75, -3, 27], quantity="p2p")
+    image.plot_image(img_extent=[-10, 75, -3, 27], quantity="p2p")
 
     # sub_image.system_stability(selected_freq_=0.800)
     # film_image.system_stability(selected_freq_=1.200)
 
     """
-    2	7, 20 
+    1	10, -1
+    2	7, 19 
     3	33, 20
     4	57, 20
-    1	10, -1,
-    5	33, -1, 
-
+    5	33, -1
     """
 
-    image.plot_point(33, -1)
-    na = image.calc_refractive_index(7, 20, thickness=thicknesses[2])
-    plt.figure()
-    plt.plot(na[:, 0], na[:, 1])
+    image.plot_point(10, -1, sam_id=1)
+    image.plot_point(7, 19, sam_id=2)
+    image.plot_point(33, 19, sam_id=3)
+    image.plot_point(57, 19, sam_id=4)
+    image.plot_point(33, -1, sam_id=5)
+
+    image.calc_refractive_index(10, -1, sam_id=1, en_plot=True)
+    image.calc_refractive_index(7, 19, sam_id=2, en_plot=True)
+    image.calc_refractive_index(33, 19, sam_id=3, en_plot=True)
+    image.calc_refractive_index(57, 19, sam_id=4, en_plot=True)
+    image.calc_refractive_index(33, -1, sam_id=5, en_plot=True)
 
     for fig_label in plt.get_figlabels():
         if "Sample" not in fig_label:
