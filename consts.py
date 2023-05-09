@@ -8,9 +8,10 @@ from numpy import pi, inf, array, nan_to_num
 post_process_config = {"sub_offset": True, "en_windowing": False, "normalize": False}
 
 # Directly indexed; don't change order
-sample_names = ["10x10cm_sqrd_s1", "10x10cm_sqrd_s2", "10x10cm_sqrd_s3", "5x5cm_sqrd", "2023-03-20", "2023-03-21"]
-sample_labels = ["(200 nm Ag)", "(500 nm Al:ZnO)", "(200 nm Ag + 500 nm Al:ZnO)", "(200 nm ITO)"]
+sample_names = []
+sample_labels = [1, 2, 3, 4, 5]
 
+thicknesses = [502, 625, 1205, 4130, 9106]
 
 plot_range = slice(25, 200)
 plot_range1 = slice(0, 1000)
@@ -18,7 +19,7 @@ plot_range_sub = slice(25, 350)
 
 cur_os = os.name
 
-c_thz = c0 * 10 ** -9  # mm / ps
+c_thz = c0 * 10 ** -6  # um / ps
 
 um = 10 ** -6
 THz = 10 ** 12
@@ -30,6 +31,7 @@ if 'posix' in cur_os:
 else:
     data_dir_ext = Path(r"E:\measurementdata\Misc\Klimaanlagenbeeinflussung\Leermessungen")
     try:
-        os.scandir(data_dir_ext)
+        data_dir_ext = Path(r"E:\MeasurementData\MSLA")
+        os.scandir(r"E:\MeasurementData\MSLA")
     except FileNotFoundError:
         data_dir_ext = Path(r"OOPS 2")

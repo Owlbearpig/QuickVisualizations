@@ -146,8 +146,10 @@ class MeasurementSet:
         self._set_info()
 
     def _set_measurements(self):
-        post_process = {"sub_offset": False, "en_windowing": False, "normalize": True}
+        post_process = {"sub_offset": True, "en_windowing": False, "normalize": False}
         all_measurements = self._get_all_measurements(post_process=post_process)
+        if len(all_measurements) == 0:
+            exit(f"Exiting; no matching files found at {self.data_dir}")
         self.all_measurements = list(sorted(all_measurements, key=lambda meas: meas.meas_time))
 
         refs, sams = self._filter_measurements(self.all_measurements)
@@ -239,7 +241,7 @@ class MeasurementSet:
         if normalize:
             ref_td[:, 1] *= 1 / np.max(ref_td[:, 1])
 
-        ref_td[:, 0] -= ref_td[0, 0]
+        # ref_td[:, 0] -= ref_td[0, 0]
 
         if ret_meas:
             return closest_ref
@@ -323,20 +325,21 @@ class MeasurementSet:
 
             fig.tight_layout()  # otherwise the right y-label is slightly clipped
 
-    def calc_refractive_index(self, measurement, thickness):
+    def calc_refractive_index(self, x, y, thickness):
+        measurement = self.find_measurement(x, y)
         ref_td, ref_fd = self.match_ref(measurement, both_domains=True)
+        freqs = ref_fd[:, 0].real
         sam_fd = measurement.get_data_fd()
 
-        phi_ref = phase_correction(ref_fd)
-        phi_sam = phase_correction(sam_fd)
+        phi_ref = phase_correction(ref_fd, en_plot=True)[:, 1]
+        phi_sam = phase_correction(sam_fd, en_plot=True)[:, 1]
 
-        delta_phi = phi_ref - phi_sam
+        delta_phi = phi_sam - phi_ref
 
-        d = thickness
-        omega = 2 * pi * ref_fd[:, 0].real
-        n_a = 1 + d * delta_phi / (c_thz * omega)
+        omega = 2 * pi * freqs
+        n_a = 1 + c_thz * delta_phi / (omega * thickness)
 
-        return n_a
+        return array([freqs, n_a]).T
 
 
 class Image(MeasurementSet):
@@ -560,17 +563,21 @@ class Image(MeasurementSet):
         if (sam_td is None) and (ref_td is None):
             measurement = self.find_measurement(x, y)
             sam_td = measurement.get_data_td()
-            ref_td = self.match_ref(measurement, sub_offset=True)
+            ref_td = self.match_ref(measurement, sub_offset=False)
+            print(np.max(ref_td[:, 1]))
 
-            sam_td = window(sam_td, win_len=25, shift=0, en_plot=False, slope=0.05)
-            ref_td = window(ref_td, win_len=25, shift=0, en_plot=False, slope=0.05)
+            # sam_td = window(sam_td, win_len=25, shift=0, en_plot=False, slope=0.05)
+            # ref_td = window(ref_td, win_len=25, shift=0, en_plot=False, slope=0.05)
 
             ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
 
-            sam_td, sam_fd = phase_correction(sam_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
-            ref_td, ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
+            # sam_td, sam_fd = phase_correction(sam_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
+            # ref_td, ref_fd = phase_correction(ref_fd, fit_range=(0.8, 1.6), extrapolate=True, both=True)
         else:
             ref_fd, sam_fd = do_fft(ref_td), do_fft(sam_td)
+
+        #ref_td[:, 1] -= np.mean(ref_td[:, 1])
+        sam_td[:, 1] -= np.mean(sam_td[:, 1])
 
         phi_ref, phi_sam = unwrap(ref_fd), unwrap(sam_fd)
 
@@ -655,17 +662,31 @@ class Image(MeasurementSet):
 
 
 if __name__ == '__main__':
-    data_path = "/home/alex/Data/MSLA/Image1"
+    data_path = data_dir_ext / "Image0"
     image = Image(data_dir=data_path)
 
-    image.plot_image(img_extent=[-10, 75, -3, 27], quantity="p2p")
+    # image.plot_image(img_extent=[-10, 75, -3, 27], quantity="p2p")
 
     # sub_image.system_stability(selected_freq_=0.800)
     # film_image.system_stability(selected_freq_=1.200)
 
+    """
+    2	7, 20 
+    3	33, 20
+    4	57, 20
+    1	10, -1,
+    5	33, -1, 
+
+    """
+
+    image.plot_point(33, -1)
+    na = image.calc_refractive_index(7, 20, thickness=thicknesses[2])
+    plt.figure()
+    plt.plot(na[:, 0], na[:, 1])
+
     for fig_label in plt.get_figlabels():
         if "Sample" not in fig_label:
-            continue
+            pass
         plt.figure(fig_label)
         plt.legend()
 
