@@ -348,8 +348,8 @@ class MeasurementSet:
             label = f"Sample {sam_id} ({x} mm, {y} mm, d={thickness} $\mu m$)"
             plt.figure("Refractive index")
             plt.title("Refractive index")
-            if sam_id != 5:
-                plt.plot(freqs[plot_range_sub], n_a[plot_range_sub], label=label)
+            #if sam_id != 5:
+            plt.plot(freqs[plot_range_sub], n_a[plot_range_sub], label=label)
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Refractive index")
 
