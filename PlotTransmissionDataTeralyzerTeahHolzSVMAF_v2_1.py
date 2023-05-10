@@ -104,8 +104,8 @@ for i in range(len(name)):
 #plt.plot(woodcl2[:,0],woodcl2[:,1],label='Lindenholz Cluster 2',color='black')
 #plt.fill_between(woodcl2[:,0],woodcl2[:,2]+woodcl2[:,3],woodcl2[:,2]-woodcl2[:,3],alpha=0.1,color='black')
 
-plt.xlabel('Frequenz [THz]')
-plt.ylabel('Brechungsindex n')
+plt.xlabel('Frequency (THz)')
+plt.ylabel('Refractive index')
 #plt.ylim((1.15,1.375))
 #plt.legend()
 
@@ -122,8 +122,8 @@ for i in range(len(name)):
 
 #plt.ylim((0,44))
 plt.ylim(bottom=0)
-plt.xlabel('Frequenz [THz]')
-plt.ylabel('Absorptionskoeffizient [cm$^{-1}$]')
+plt.xlabel('Frequency (THz)')
+plt.ylabel('Absorption coefficient (cm$^{-1}$)')
 
 handles,labels=plt.gca().get_legend_handles_labels()
 fig.legend(handles, labels, loc=1)#, fontsize='x-small', ncol=2)#,ncol=5)
@@ -243,8 +243,8 @@ plt.plot(woodcl2[:,0],woodcl2[:,4],label='Lindenholz Cluster 2',color='black')
 plt.fill_between(woodcl2[:,0],woodcl2[:,5]+woodcl2[:,6],woodcl2[:,5]-woodcl2[:,6],alpha=0.1,color='black')
 """
 
-plt.xlabel('Frequenz [THz]')
-plt.ylabel('Absorptionskoeffizient [cm$^{-1}$]')
+plt.xlabel('Frequency (THz)')
+plt.ylabel('Absorption coefficient (cm$^{-1}$)')
 
 handles,labels=plt.gca().get_legend_handles_labels()
 fig.legend(handles, labels, loc=1)#,ncol=5)

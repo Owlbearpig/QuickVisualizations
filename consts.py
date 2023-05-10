@@ -9,13 +9,15 @@ post_process_config = {"sub_offset": True, "en_windowing": False, "normalize": F
 
 sample_names = []
 
-# thicknesses = [502, 625, 1205, 4130, 9106]
-thicknesses = [486, 585, 1163, 4098, 9106]  # teralyzer
+thicknesses = [502, 625, 1205, 4130, 9106]
+# thicknesses = [466, 578, 1158, 4087, 9100]  # teralyzer
 # thicknesses = [502, 585, 1205, 4130, 9106]
 
 samples = {"1": thicknesses[0], "2": thicknesses[1], "3": thicknesses[2], "4": thicknesses[3], "5": thicknesses[4]}
 
 plot_range = slice(25, 200)
+# plot_range1 = slice(25, 60)
+# plot_range2 = slice(25, 120)
 plot_range1 = slice(0, 1000)
 plot_range_sub = slice(25, 250)
 

@@ -2,12 +2,12 @@ import matplotlib as mpl
 from consts import cur_os, Path
 import matplotlib.pyplot as plt
 import matplotlib.font_manager
-# print(mpl.rcParams.keys())
+#print(mpl.rcParams.keys())
 
 # print([f.name for f in matplotlib.font_manager.fontManager.ttflist])
 
 # mpl.rcParams['lines.linestyle'] = '--'
-#mpl.rcParams['legend.fontsize'] = 'large' #'x-large'
+mpl.rcParams['legend.fontsize'] = 'small' #'x-large'
 mpl.rcParams['legend.shadow'] = False
 #mpl.rcParams['lines.marker'] = 'o'
 mpl.rcParams['lines.markersize'] = 4

@@ -344,19 +344,27 @@ class MeasurementSet:
         T = np.abs(sam_fd[:, 1] / ref_fd[:, 1])
         alpha = 1e4*(-2/thickness) * np.log(T * (n_a + 1)**2 / (4 * n_a))
 
+        plot_range_ = plot_range_sub
+        if sam_id == 5:
+            plot_range_ = slice(25, 60)
+        if sam_id == 4:
+            plot_range_ = slice(25, 120)
+        if sam_id == 3:
+            plot_range_ = slice(25, 223)
+
         if en_plot:
+            plt.figure("Analytical calculation")
             label = f"Sample {sam_id} ({x} mm, {y} mm, d={thickness} $\mu m$)"
-            plt.figure("Refractive index")
-            plt.title("Refractive index")
-            #if sam_id != 5:
-            plt.plot(freqs[plot_range_sub], n_a[plot_range_sub], label=label)
+            plt.subplot(1, 2, 1)
+            plt.title("Analytical refractive index")
+            plt.plot(freqs[plot_range_], n_a[plot_range_], label=label)
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Refractive index")
 
+            plt.subplot(1, 2, 2)
             label = f"Sample {sam_id} ({x} mm, {y} mm, d={thickness} $\mu m$)"
-            plt.figure("Absorption coefficient")
-            plt.title("Absorption coefficient")
-            plt.plot(freqs[plot_range_sub], alpha[plot_range_sub], label=label)
+            plt.title("Analytical absorption coefficient")
+            plt.plot(freqs[plot_range_], alpha[plot_range_], label=label)
             plt.xlabel("Frequency (THz)")
             plt.ylabel("Absorption coefficient $(cm^{-1})$")
 
@@ -688,7 +696,7 @@ class Image(MeasurementSet):
 
 
 if __name__ == '__main__':
-    data_path = data_dir_ext / "Image1"
+    data_path = data_dir_ext / "Image0"
     image = Image(data_dir=data_path)
 
     image.plot_image(img_extent=[-10, 75, -3, 27], quantity="p2p")
@@ -708,7 +716,7 @@ if __name__ == '__main__':
     image.plot_point(7, 19, sam_id=2)
     image.plot_point(33, 19, sam_id=3)
     image.plot_point(57, 19, sam_id=4)
-    image.plot_point(33, -1, sam_id=5)
+    image.plot_point(33, 1, sam_id=5)
 
     image.calc_refractive_index(10, -1, sam_id=1, en_plot=True)
     image.calc_refractive_index(7, 19, sam_id=2, en_plot=True)
