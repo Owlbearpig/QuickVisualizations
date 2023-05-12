@@ -21,8 +21,8 @@ name=[]
 for nam in names:
     nam=nam.replace('Chaetomium','C')
     #name.append(' '.join(nam.split('_')[0:-1]))
-    name.append(' '.join(nam.split('_')))
-name=np.asarray(name)
+    name.append(' '.join(nam.split('_')) + " $\mu m$")
+name=(name)
 
 
 freqlist=[]
@@ -46,11 +46,11 @@ for dframe in out:
     deltaNlist.append(dframe.values[:,12][0:emptyRowPos].astype('float64'))
     deltaAlist.append(dframe.values[:,13][0:emptyRowPos].astype('float64'))
 
-freq=np.asarray(freqlist)
-Narr=np.asarray(Nlist)
-Aarr=np.asarray(Alist)
-deltaNarr=np.asarray(deltaNlist)
-deltaAarr=np.asarray(deltaAlist)
+freq=freqlist
+Narr=(Nlist)
+Aarr=(Alist)
+deltaNarr=(deltaNlist)
+deltaAarr=(deltaAlist)
 
 def SVMAF(narr,deltanarr,repeats=5):
     def corralgorithm(narr, deltanarr):
@@ -73,8 +73,8 @@ Aarrsav=[]
 for i in range(len(name)):
     Narrsav.append(SVMAF(Narr[i],deltaNarr[i]))
     Aarrsav.append(SVMAF(Aarr[i],deltaAarr[i]))
-Narrsav=np.asarray(Narrsav)
-Aarrsav=np.asarray(Aarrsav)
+Narrsav=(Narrsav)
+Aarrsav=(Aarrsav)
 
 nstartvallist=[]
 for i in range(len(name)):
@@ -97,12 +97,12 @@ for i in range(len(name)):
     plt.plot(freq[i]*1e-12,Narrsav[i],label=name[i],color=colmap(ncolvalues[i]))
     #plt.plot(freq[i]*1e-12,Narr[i]+deltaNarr[i],ls='--',lw=0.4,color=color)
     #plt.plot(freq[i]*1e-12,Narr[i]-deltaNarr[i],ls='--',lw=0.4,color=color)
-    plt.fill_between(freq[i]*1e-12,Narr[i]+deltaNarr[i],Narr[i]-deltaNarr[i],alpha=0.08,color=colmap(ncolvalues[i]))
+    plt.fill_between(freq[i]*1e-12,Narr[i]+deltaNarr[i],Narr[i]-deltaNarr[i],alpha=0.48,color=colmap(ncolvalues[i]))
     
 #plt.plot(woodcl1[:,0],woodcl1[:,1],label='Lindenholz Cluster 1',color='black')
-#plt.fill_between(woodcl1[:,0],woodcl1[:,2]+woodcl1[:,3],woodcl1[:,2]-woodcl1[:,3],alpha=0.1,color='black')
+#plt.fill_between(woodcl1[:,0],woodcl1[:,2]+woodcl1[:,3],woodcl1[:,2]-woodcl1[:,3],alpha=0.4,color='black')
 #plt.plot(woodcl2[:,0],woodcl2[:,1],label='Lindenholz Cluster 2',color='black')
-#plt.fill_between(woodcl2[:,0],woodcl2[:,2]+woodcl2[:,3],woodcl2[:,2]-woodcl2[:,3],alpha=0.1,color='black')
+#plt.fill_between(woodcl2[:,0],woodcl2[:,2]+woodcl2[:,3],woodcl2[:,2]-woodcl2[:,3],alpha=0.4,color='black')
 
 plt.xlabel('Frequency (THz)')
 plt.ylabel('Refractive index')
@@ -113,12 +113,12 @@ plt.subplot(122)
 for i in range(len(name)):
     #plt.errorbar(freq[i]*1e-12,Aarr[i],deltaAarr[i],label=name[i])
     plt.plot(freq[i]*1e-12,Aarrsav[i],label=name[i],color=colmap(ncolvalues[i]))
-    plt.fill_between(freq[i]*1e-12,Aarr[i]+deltaAarr[i],Aarr[i]-deltaAarr[i],alpha=0.08,color=colmap(ncolvalues[i]))
+    plt.fill_between(freq[i]*1e-12,Aarr[i]+deltaAarr[i],Aarr[i]-deltaAarr[i],alpha=0.48,color=colmap(ncolvalues[i]))
     
 #plt.plot(woodcl1[:,0],woodcl1[:,4],label='Lindenholz Cluster 1',color='black')
-#plt.fill_between(woodcl1[:,0],woodcl1[:,5]+woodcl1[:,6],woodcl1[:,5]-woodcl1[:,6],alpha=0.1,color='black')
+#plt.fill_between(woodcl1[:,0],woodcl1[:,5]+woodcl1[:,6],woodcl1[:,5]-woodcl1[:,6],alpha=0.4,color='black')
 #plt.plot(woodcl2[:,0],woodcl2[:,4],label='Lindenholz Cluster 2',color='black')
-#plt.fill_between(woodcl2[:,0],woodcl2[:,5]+woodcl2[:,6],woodcl2[:,5]-woodcl2[:,6],alpha=0.1,color='black')
+#plt.fill_between(woodcl2[:,0],woodcl2[:,5]+woodcl2[:,6],woodcl2[:,5]-woodcl2[:,6],alpha=0.4,color='black')
 
 #plt.ylim((0,44))
 plt.ylim(bottom=0)
@@ -145,12 +145,12 @@ plt.subplot(121)
 for i in range(len(name)):
     #color = next(ax._get_lines.prop_cycler)['color']
     plt.plot(freq[i]*1e-12,Narrsav[i],label=name[i],color=colors[i%len(colors)])
-    plt.fill_between(freq[i]*1e-12,Narr[i]+deltaNarr[i],Narr[i]-deltaNarr[i],alpha=0.08,color=colors[i%len(colors)])
+    plt.fill_between(freq[i]*1e-12,Narr[i]+deltaNarr[i],Narr[i]-deltaNarr[i],alpha=0.48,color=colors[i%len(colors)])
     
 plt.plot(woodcl1[:,0],woodcl1[:,1],label='Lindenholz Cluster 1',color='black')
-plt.fill_between(woodcl1[:,0],woodcl1[:,2]+woodcl1[:,3],woodcl1[:,2]-woodcl1[:,3],alpha=0.1,color='black')
+plt.fill_between(woodcl1[:,0],woodcl1[:,2]+woodcl1[:,3],woodcl1[:,2]-woodcl1[:,3],alpha=0.4,color='black')
 plt.plot(woodcl2[:,0],woodcl2[:,1],label='Lindenholz Cluster 2',color='black')
-plt.fill_between(woodcl2[:,0],woodcl2[:,2]+woodcl2[:,3],woodcl2[:,2]-woodcl2[:,3],alpha=0.1,color='black')
+plt.fill_between(woodcl2[:,0],woodcl2[:,2]+woodcl2[:,3],woodcl2[:,2]-woodcl2[:,3],alpha=0.4,color='black')
 
 plt.xlabel('Frequenz [THz]')
 plt.ylabel('Brechungsindex n')
@@ -161,12 +161,12 @@ plt.subplot(122)
 for i in range(len(name)):
     #plt.errorbar(freq[i]*1e-12,Aarr[i],deltaAarr[i],label=name[i])
     plt.plot(freq[i]*1e-12,Aarrsav[i],label=name[i],color=colors[i%len(colors)])
-    plt.fill_between(freq[i]*1e-12,Aarr[i]+deltaAarr[i],Aarr[i]-deltaAarr[i],alpha=0.08,color=colors[i%len(colors)])
+    plt.fill_between(freq[i]*1e-12,Aarr[i]+deltaAarr[i],Aarr[i]-deltaAarr[i],alpha=0.48,color=colors[i%len(colors)])
     
 plt.plot(woodcl1[:,0],woodcl1[:,4],label='Lindenholz Cluster 1',color='black')
-plt.fill_between(woodcl1[:,0],woodcl1[:,5]+woodcl1[:,6],woodcl1[:,5]-woodcl1[:,6],alpha=0.1,color='black')
+plt.fill_between(woodcl1[:,0],woodcl1[:,5]+woodcl1[:,6],woodcl1[:,5]-woodcl1[:,6],alpha=0.4,color='black')
 plt.plot(woodcl2[:,0],woodcl2[:,4],label='Lindenholz Cluster 2',color='black')
-plt.fill_between(woodcl2[:,0],woodcl2[:,5]+woodcl2[:,6],woodcl2[:,5]-woodcl2[:,6],alpha=0.1,color='black')
+plt.fill_between(woodcl2[:,0],woodcl2[:,5]+woodcl2[:,6],woodcl2[:,5]-woodcl2[:,6],alpha=0.4,color='black')
 
 plt.xlabel('Frequenz [THz]')
 plt.ylabel('Absorptionskoeffizient [cm$^{-1}$]')
@@ -203,13 +203,13 @@ for i in range(len(name)):
     """
     lstyle='-'
     plt.plot(freq[i]*1e-12,Narrsav[i],label=name[i],color=color,ls=lstyle)
-    plt.fill_between(freq[i]*1e-12,Narr[i]+deltaNarr[i],Narr[i]-deltaNarr[i],alpha=0.08,color=color)
+    plt.fill_between(freq[i]*1e-12,Narr[i]+deltaNarr[i],Narr[i]-deltaNarr[i],alpha=0.40,color=color)
 
 """
 plt.plot(woodcl1[:,0],woodcl1[:,1],label='Lindenholz Cluster 1',color='black')
-plt.fill_between(woodcl1[:,0],woodcl1[:,2]+woodcl1[:,3],woodcl1[:,2]-woodcl1[:,3],alpha=0.1,color='black')
+plt.fill_between(woodcl1[:,0],woodcl1[:,2]+woodcl1[:,3],woodcl1[:,2]-woodcl1[:,3],alpha=0.4,color='black')
 plt.plot(woodcl2[:,0],woodcl2[:,1],label='Lindenholz Cluster 2',color='black')
-plt.fill_between(woodcl2[:,0],woodcl2[:,2]+woodcl2[:,3],woodcl2[:,2]-woodcl2[:,3],alpha=0.1,color='black')
+plt.fill_between(woodcl2[:,0],woodcl2[:,2]+woodcl2[:,3],woodcl2[:,2]-woodcl2[:,3],alpha=0.4,color='black')
 """
 
 plt.xlabel('Frequenz [THz]')
@@ -234,13 +234,13 @@ for i in range(len(name)):
     """
     lstyle='-'
     plt.plot(freq[i]*1e-12,Aarrsav[i],label=name[i],color=color,ls=lstyle)
-    plt.fill_between(freq[i]*1e-12,Aarr[i]+deltaAarr[i],Aarr[i]-deltaAarr[i],alpha=0.08,color=color)
+    plt.fill_between(freq[i]*1e-12,Aarr[i]+deltaAarr[i],Aarr[i]-deltaAarr[i],alpha=0.40,color=color)
 
 """ 
 plt.plot(woodcl1[:,0],woodcl1[:,4],label='Lindenholz Cluster 1',color='black')
-plt.fill_between(woodcl1[:,0],woodcl1[:,5]+woodcl1[:,6],woodcl1[:,5]-woodcl1[:,6],alpha=0.1,color='black')
+plt.fill_between(woodcl1[:,0],woodcl1[:,5]+woodcl1[:,6],woodcl1[:,5]-woodcl1[:,6],alpha=0.4,color='black')
 plt.plot(woodcl2[:,0],woodcl2[:,4],label='Lindenholz Cluster 2',color='black')
-plt.fill_between(woodcl2[:,0],woodcl2[:,5]+woodcl2[:,6],woodcl2[:,5]-woodcl2[:,6],alpha=0.1,color='black')
+plt.fill_between(woodcl2[:,0],woodcl2[:,5]+woodcl2[:,6],woodcl2[:,5]-woodcl2[:,6],alpha=0.4,color='black')
 """
 
 plt.xlabel('Frequency (THz)')

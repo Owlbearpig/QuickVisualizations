@@ -30,12 +30,20 @@ THz = 10 ** 12
 
 ROOT_DIR = Path(os.path.dirname(os.path.abspath(__file__)))
 
-if 'posix' in cur_os:
-    data_dir_ext = Path(r"/home/alex/Data/MSLA")
-else:
-    data_dir_ext = Path(r"E:\MeasurementData\MSLA")
+paths = [
+    r"C:\_\Data\MSLA",
+    r"/home/alex/Data/MSLA",
+    r"E:\MeasurementData\MSLA",
+]
+
+data_dir_ext = None
+for path_str in paths:
+    path = Path(path_str)
     try:
-        data_dir_ext = Path(r"E:\MeasurementData\MSLA")
-        os.scandir(r"E:\MeasurementData\MSLA")
+        os.scandir(path)
+        data_dir_ext = path
     except FileNotFoundError:
-        data_dir_ext = Path(r"OOPS 2")
+        continue
+
+if data_dir_ext is None:
+    exit("Data dir not found")
